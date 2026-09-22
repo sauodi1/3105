@@ -1,0 +1,55 @@
+name: Build Arabic IPA
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show Xcode
+        run: xcodebuild -version && xcodebuild -list -project ThreeOneOSFive.xcodeproj || true
+
+      - name: Build unsigned archive
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          xcodebuild \
+            -project ThreeOneOSFive.xcodeproj \
+            -scheme 3105 \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$PWD/build/3105.xcarchive" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            DEVELOPMENT_TEAM="" \
+            archive
+
+      - name: Package IPA
+        run: |
+          set -euo pipefail
+          APP="build/3105.xcarchive/Products/Applications/3105.app"
+          test -d "$APP"
+          rm -rf build/Payload build/3105-ar.ipa
+          mkdir -p build/Payload
+          cp -R "$APP" build/Payload/
+          /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName 3105 عربي" "build/Payload/3105.app/Info.plist" || true
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString 2.1.0" "build/Payload/3105.app/Info.plist" || true
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion 910" "build/Payload/3105.app/Info.plist" || true
+          /usr/libexec/PlistBuddy -c "Add :AppReleaseDisplayVersion string 2.1.0-AR" "build/Payload/3105.app/Info.plist" 2>/dev/null || \
+            /usr/libexec/PlistBuddy -c "Set :AppReleaseDisplayVersion 2.1.0-AR" "build/Payload/3105.app/Info.plist" || true
+          (cd build && zip -r -y 3105-ar.ipa Payload)
+          ls -lh build/3105-ar.ipa
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: 3105-ar-ipa
+          path: build/3105-ar.ipa
+          if-no-files-found: error
