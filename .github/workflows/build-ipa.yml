@@ -3,22 +3,31 @@ name: Build Arabic IPA
 on:
   workflow_dispatch:
   push:
-    branches: [main, master]
+    branches: [main]
 
 jobs:
   build:
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Select newest Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
       - name: Show Xcode
-        run: xcodebuild -version && xcodebuild -list -project ThreeOneOSFive.xcodeproj || true
+        run: |
+          xcodebuild -version
+          ls /Applications | rg '^Xcode' || true
+          xcodebuild -list -project ThreeOneOSFive.xcodeproj || true
 
       - name: Build unsigned archive
         run: |
           set -euo pipefail
           mkdir -p build
+          set -o pipefail
           xcodebuild \
             -project ThreeOneOSFive.xcodeproj \
             -scheme 3105 \
@@ -46,6 +55,8 @@ jobs:
             /usr/libexec/PlistBuddy -c "Set :AppReleaseDisplayVersion 2.1.0-AR" "build/Payload/3105.app/Info.plist" || true
           (cd build && zip -r -y 3105-ar.ipa Payload)
           ls -lh build/3105-ar.ipa
+          # verify Arabic lproj present
+          ls "build/Payload/3105.app/ar.lproj" || true
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
